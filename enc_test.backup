@@ -1,0 +1,29 @@
+#include "encrypt.h"
+
+#include <stdio.h>
+#include <string.h>
+
+int main(){
+   
+   char *plain = "my first encrypted functions";
+   unsigned char *p_enc, *p_mac, *p_dec;
+   int len,len_dst;
+   len = strlen(plain);
+   printf("len:%d\n",len);
+   p_enc = (unsigned char *)malloc(sizeof(unsigned char)*len);
+//   p_mac = (unsigned char *)malloc(sizeof(unsigned char)*16);
+   my_aes_gcm_encrypt(plain, len, p_enc, &len_dst, p_mac);   
+   printf("Ciphertext:\n");
+   printf("len_dst:%d\n",len_dst);
+   BIO_dump_fp(stdout, p_enc, strlen(p_enc));
+   BIO_dump_fp(stdout, p_mac, strlen(p_mac));   
+
+   printf("sizeof(p_mac):%d\n",sizeof(p_mac));
+   printf("strlen(p_mac):%d\n",strlen(p_mac));
+   
+   p_dec = (unsigned char *)malloc(sizeof(unsigned char)*len);
+   my_aes_gcm_decrypt(p_enc, len, p_dec, &len_dst, p_mac);
+   printf("Decrypted:\n");
+   printf("%s\n",p_dec);
+   return 0;
+}
