@@ -86,3 +86,15 @@ void my_aes_gcm_decrypt(char *p_src, uint32_t src_len, char *p_dst, uint32_t *ds
         printf("dst_len:%d\n",*dst_len);
 }
 
+void my_sha1(unsigned char *message, unsigned char *md_value, int *md_len)
+{
+     EVP_MD_CTX *mdctx;
+     mdctx = EVP_MD_CTX_create();
+     EVP_DigestInit_ex(mdctx, EVP_sha1(), NULL);
+     EVP_DigestUpdate(mdctx, message, strlen(message));
+     EVP_DigestFinal_ex(mdctx, md_value, md_len);
+     EVP_MD_CTX_destroy(mdctx);
+
+     printf("sha1:\n");
+     BIO_dump_fp(stdout, md_value,*md_len);
+}

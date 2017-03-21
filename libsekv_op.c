@@ -52,14 +52,20 @@ int sekv_set(int sockfd, char *key, int flags, int exptime, int bytes, char *val
     sprintf(buf," %d %d %d",flags,exptime,bytes+16);
     strcat(comm,buf);
     strcat(comm,"\r\n");    
-//    printf("command:\n");
-//    BIO_dump_fp(stdout,comm,strlen(comm));
+    printf("command:\n");
+    BIO_dump_fp(stdout,comm,strlen(comm));
     int len;
     // send set command
     len=send(sockfd,comm,strlen(comm),0);
+    //store key mac
+    char *md_value;
+    int md_len;
+    md_value = (unsigned char *)malloc(sizeof(unsigned char)*20);
+    my_sha1(comm,md_value,&md_len);
+ 
     free(p_enc);
     free(p_mac);
-    // encrypt <value>
+    // encrypt <MACmeta, vn, MACv,value>
     p_enc = (unsigned char *)malloc(sizeof(unsigned char)*strlen(value));
     p_mac = (unsigned char *)malloc(sizeof(unsigned char)*16);
     my_aes_gcm_encrypt(value,strlen(value),p_enc,&len_dst,p_mac);
@@ -135,8 +141,8 @@ int sekv_get(int sockfd, char *key, int flags, int exptime, int bytes, char *val
 
 int main()
 {
-   char *key="123";
-   char *value="hell";
+   char *key="1234567891011121";
+   char *value="hell11111111111111111";
    int re=0;
    int sockfd;
    sockfd = sekv_connect_server();
