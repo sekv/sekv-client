@@ -34,9 +34,11 @@ void my_aes_gcm_encrypt(char *p_src, uint32_t src_len, char *p_dst, uint32_t *ds
     EVP_CIPHER_CTX_free(ctx);
 
 
-//        printf("Ciphertext:\n");
-//        BIO_dump_fp(stdout, p_dst, strlen(p_dst));
-//        printf("dst_len:%d\n",*dst_len);
+        printf("Ciphertext:\n");
+        BIO_dump_fp(stdout, p_dst, strlen(p_dst));
+        printf("dst_len:%d\n",*dst_len);
+        printf("MAC:\n");
+        BIO_dump_fp(stdout,p_out_mac,strlen(p_out_mac));
 }
 
 void my_aes_gcm_decrypt(char *p_src, uint32_t src_len, char *p_dst, uint32_t *dst_len, unsigned char *p_out_mac){
@@ -60,14 +62,25 @@ void my_aes_gcm_decrypt(char *p_src, uint32_t src_len, char *p_dst, uint32_t *ds
     EVP_DecryptInit_ex(ctx, NULL, NULL, gcm_key, gcm_iv);
     EVP_DecryptUpdate(ctx, p_dst, dst_len, p_src, strlen(p_src));
 
+    EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, 16, p_out_mac);
 //        printf("Plaintext:\n");
 //        BIO_dump_fp(stdout, p_dst, *dst_len);
 //        printf("dst_len:%d\n",*dst_len);
-    EVP_DecryptFinal_ex(ctx, p_dst, dst_len);
-    EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, 16, p_out_mac);
+    int ret;
+    ret = EVP_DecryptFinal_ex(ctx, p_dst+*dst_len, dst_len);
+//    char *p_mac;
+//    p_mac = (unsigned char *)malloc(sizeof(unsigned char)*16);
+//    EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, 16, p_mac);
     EVP_CIPHER_CTX_free(ctx);
-
-
+    if (ret > 0){
+       printf("Decrypt success!\n");
+    }
+    else{
+       printf("Decrypt failed!\n");
+    }
+//    printf("MACs:\n");
+//    BIO_dump_fp(stdout, p_mac,16);
+//    BIO_dump_fp(stdout, p_out_mac,16);
         printf("Plaintext:\n");
         BIO_dump_fp(stdout, p_dst, strlen(p_dst));
         printf("dst_len:%d\n",*dst_len);
