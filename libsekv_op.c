@@ -34,7 +34,7 @@ int sekv_connect_server()
 
 int sekv_set(int sockfd, char *key, int flags, int exptime, int bytes, char *value)
 {
-    char buf[BUFSIZ], comm[BUFSIZ], bufv[BUFSIZ];
+    char buf[BUFSIZ], comm[BUFSIZ], bufv[BUFSIZ],sb[BUFSIZ];
     // <command name> <key> <flags> <exptime> <bytes> [noreply]\r\n
     char *command="set ";
     strcpy(comm, command);
@@ -44,12 +44,13 @@ int sekv_set(int sockfd, char *key, int flags, int exptime, int bytes, char *val
     p_enc = (unsigned char *)malloc(sizeof(unsigned char)*strlen(key));
     p_mac = (unsigned char *)malloc(sizeof(unsigned char)*16);
     my_aes_gcm_encrypt(key,strlen(key),p_enc,&len_dst,p_mac);
+    printf("strlen(p_enc):%d\n",strlen(p_enc));
     printf("strlen(p_mac):%d\n",strlen(p_mac));
     // the return MAC length may vary, we use the first 16 bytes
     strncat(comm,p_mac,16);
     strcat(comm,p_enc);
-    // the value length bytes+16, 16 is the length of MAC
-    sprintf(buf," %d %d %d",flags,exptime,bytes+16);
+    // the value length bytes+16, 16 is the length of MAC, 20 bytes of meta sha1, 4 bytes of version number
+    sprintf(buf," %d %d %d",flags,exptime,bytes+16+20+4);
     strcat(comm,buf);
     strcat(comm,"\r\n");    
     printf("command:\n");
@@ -57,26 +58,35 @@ int sekv_set(int sockfd, char *key, int flags, int exptime, int bytes, char *val
     int len;
     // send set command
     len=send(sockfd,comm,strlen(comm),0);
-    //store key mac
-    char *md_value;
-    int md_len;
-    md_value = (unsigned char *)malloc(sizeof(unsigned char)*20);
-    my_sha1(comm,md_value,&md_len);
- 
     free(p_enc);
     free(p_mac);
-    // encrypt <MACmeta, vn, MACv,value>
-    p_enc = (unsigned char *)malloc(sizeof(unsigned char)*strlen(value));
+    // encrypt <value>
+    p_enc = (unsigned char *)malloc(sizeof(unsigned char)*(strlen(value)+20+4));
     p_mac = (unsigned char *)malloc(sizeof(unsigned char)*16);
-    my_aes_gcm_encrypt(value,strlen(value),p_enc,&len_dst,p_mac);
-    strncpy(bufv,p_mac,16);
-    strcat(bufv,p_enc);
-    strcat(bufv,"\r\n");
-//    printf("value:\n");
-//    BIO_dump_fp(stdout,bufv,strlen(bufv));
-//    printf("strlen(bufv):%d\n",strlen(bufv));
+    
+    unsigned char *md_value;
+    int md_len;
+    md_value = (unsigned char *)malloc(sizeof(unsigned char)*20);
+    sprintf(buf,"%s %d %d",key,flags,exptime);
+    printf("meta:%s\n",buf);
+    my_sha1(buf,md_value,&md_len);
+    strncpy(bufv,md_value,20);
+    
+//    my_aes_gcm_encrypt(value,strlen(value),p_enc,&len_dst,p_mac);
+    sprintf(buf,"%4d",0);
+    strncat(bufv,buf,4);
+    strcat(bufv,value);
+    printf("bufv:%s\n",bufv);
+    my_aes_gcm_encrypt(bufv,strlen(bufv),p_enc,&len_dst,p_mac);
+
+    strncpy(sb,p_mac,16);
+    strcat(sb,p_enc);
+    strcat(sb,"\r\n");
+    printf("value:\n");
+    BIO_dump_fp(stdout,sb,strlen(sb));
+    printf("strlen(bufv):%d\n",strlen(sb));
     // send encrypted <value>
-    len=send(sockfd,bufv,strlen(bufv),0); 
+    len=send(sockfd,sb,strlen(sb),0); 
     len=recv(sockfd,buf,BUFSIZ,0);
     printf("%s\n",buf);   
     return 0;
@@ -89,11 +99,13 @@ int sekv_get(int sockfd, char *key, int flags, int exptime, int bytes, char *val
     strcpy(comm,command);
     unsigned char *p_enc, *p_mac;
     int len_dst;
+    printf("strlen(key):%d\n",strlen(key));
     p_enc = (unsigned char *)malloc(sizeof(unsigned char)*strlen(key));
     p_mac = (unsigned char *)malloc(sizeof(unsigned char)*16);
     my_aes_gcm_encrypt(key,strlen(key),p_enc,&len_dst,p_mac);
+    printf("strlen(p_enc):%d\n",strlen(p_enc));
     strncat(comm,p_mac,16);
-    strcat(comm,p_enc);
+    strncat(comm,p_enc,strlen(key));
     strcat(comm,"\r\n");
     int len;
     len=send(sockfd,comm,strlen(comm),0);
@@ -112,6 +124,7 @@ int sekv_get(int sockfd, char *key, int flags, int exptime, int bytes, char *val
 //    }
     printf("Received Value:\n");
     BIO_dump_fp(stdout,buf,strlen(buf));
+    printf("strlen(buf):%d\n",strlen(buf));
     
     int i,line,j;
     char ev[BUFSIZ];
@@ -125,24 +138,33 @@ int sekv_get(int sockfd, char *key, int flags, int exptime, int bytes, char *val
          line++;
        }
     }
+    unsigned char *shameta,*vn;
     p_dec = (unsigned char *)malloc(sizeof(unsigned char)*1024);
     p_dst = (unsigned char *)malloc(sizeof(unsigned char)*1024);
+    shameta = (unsigned char *)malloc(sizeof(unsigned char)*20);
+    vn = (unsigned char *)malloc(sizeof(unsigned char)*4);
     strncpy(p_mac,ev,16);
+//    strncpy(shameta,ev+16,20);
+//    strncpy(vn,ev+16+20,4);
     strncpy(p_dec,ev+16,strlen(ev)-16-2);
     printf("p_mac:\n");
     BIO_dump_fp(stdout,p_mac,16);
+    printf("p_dec:\n");
     BIO_dump_fp(stdout,p_dec,strlen(ev)-16-2); 
-    
+    printf("strlen(ev):%d\n",strlen(ev)); 
     my_aes_gcm_decrypt(p_dec,strlen(ev)-18,p_dst,&len_dst,p_mac);
+    strncpy(shameta,p_dst,20);
+    strncpy(vn,p_dst+20,4);
+    printf("vn:%d\n",atoi(vn));
     printf("plain value:\n");
-    printf("%s\n",p_dst);
+    printf("%s\n",p_dst+24);
     return 0;
 }
 
 int main()
 {
-   char *key="1234567891011121";
-   char *value="hell11111111111111111";
+   char *key="1234key";
+   char *value="hello world! My first runnable SeKV get set operations";
    int re=0;
    int sockfd;
    sockfd = sekv_connect_server();
