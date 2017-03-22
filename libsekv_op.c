@@ -200,6 +200,11 @@ int sekv_get(int sockfd, char *key, int flags, int exptime, int bytes, char *val
     return 0;
 }
 
+int sekv_append(int sockfd, char *key, int flags, int exptime, int bytes, char *value)
+{
+   
+}
+
 int main()
 {
    char *key="1234key";
