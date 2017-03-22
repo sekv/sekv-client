@@ -58,27 +58,48 @@ int sekv_set(int sockfd, char *key, int flags, int exptime, int bytes, char *val
     int len;
     // send set command
     len=send(sockfd,comm,strlen(comm),0);
+    
+    // version tracking table operations
+    item *it_new, *it;
+    uint32_t hv;
+    it_new = (item *)malloc(sizeof(item));
+    it_new->key = (char *)malloc(sizeof(char)*16);
+    it_new->nkey = 16;
+    it_new->vn = 0;
+    strncpy(it_new->key,p_mac,16);
+    hv = MurmurHash3_x86_32(it_new->key, it_new->nkey);
+    it = assoc_find(it_new->key, it_new->nkey, hv);
+    if(it){
+        assoc_delete(it_new->key,it_new->nkey, hv);
+        printf("set command: find the same key!\n");   
+    }else{
+        printf("set command: not find the same key!\n");
+    }
+    assoc_insert(it_new, hv);
+
     free(p_enc);
     free(p_mac);
-    // encrypt <value>
+    // encrypt <MACmeta,vn,value>
     p_enc = (unsigned char *)malloc(sizeof(unsigned char)*(strlen(value)+20+4));
     p_mac = (unsigned char *)malloc(sizeof(unsigned char)*16);
-    
+    // MACmeta is the sha1 message digest
     unsigned char *md_value;
     int md_len;
     md_value = (unsigned char *)malloc(sizeof(unsigned char)*20);
     sprintf(buf,"%s %d %d",key,flags,exptime);
     printf("meta:%s\n",buf);
     my_sha1(buf,md_value,&md_len);
+    memset(bufv,0,BUFSIZ);
     strncpy(bufv,md_value,20);
-    
-//    my_aes_gcm_encrypt(value,strlen(value),p_enc,&len_dst,p_mac);
+    // 4 bytes long version number, initial value 0
     sprintf(buf,"%4d",0);
     strncat(bufv,buf,4);
     strcat(bufv,value);
     printf("bufv:%s\n",bufv);
+    printf("strlen(bufv):%d\n",strlen(bufv));
     my_aes_gcm_encrypt(bufv,strlen(bufv),p_enc,&len_dst,p_mac);
-
+    
+    memset(sb,0,BUFSIZ);
     strncpy(sb,p_mac,16);
     strcat(sb,p_enc);
     strcat(sb,"\r\n");
@@ -109,6 +130,13 @@ int sekv_get(int sockfd, char *key, int flags, int exptime, int bytes, char *val
     strcat(comm,"\r\n");
     int len;
     len=send(sockfd,comm,strlen(comm),0);
+   
+    //version tracking table operations 
+    item *it;
+    uint32_t hv;
+    hv = MurmurHash3_x86_32(p_mac,16);
+    it = assoc_find(p_mac,16,hv);
+
     printf("command:\n");
     BIO_dump_fp(stdout,comm,strlen(comm));
     int receive_sum=0,index=0;
@@ -156,6 +184,17 @@ int sekv_get(int sockfd, char *key, int flags, int exptime, int bytes, char *val
     strncpy(shameta,p_dst,20);
     strncpy(vn,p_dst+20,4);
     printf("vn:%d\n",atoi(vn));
+    if(it){
+      if(it->vn == atoi(vn)){
+         printf("Version number checking success!\n");
+      }
+      else{
+         printf("Version number checking failed!\n"); 
+      }
+    }
+    else{
+      printf("Not find in version tracking table!\n");
+    }
     printf("plain value:\n");
     printf("%s\n",p_dst+24);
     return 0;
@@ -167,7 +206,10 @@ int main()
    char *value="hello world! My first runnable SeKV get set operations";
    int re=0;
    int sockfd;
+   assoc_init(16);
    sockfd = sekv_connect_server();
+   re = sekv_set(sockfd,key,0,0,strlen(value),value);
+   re = sekv_get(sockfd,key,0,0,0,NULL);
    re = sekv_set(sockfd,key,0,0,strlen(value),value);
    re = sekv_get(sockfd,key,0,0,0,NULL);
 } 

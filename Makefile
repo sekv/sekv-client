@@ -1,5 +1,2 @@
-all: *.c *.h
-	gcc -O3 *.c -Wall -levent -std=c99 -lcrypto -pthread -lm -D_GNU_SOURCE -o loader
-
-clean:
-	rm loader
+sekv: libsekv_op.c encrypt.c encrypt.h hash_op.c hash_op.h murmur3_hash.c murmur3_hash.h
+	gcc -o sekv libsekv_op.c encrypt.c encrypt.h hash_op.c hash_op.h murmur3_hash.c murmur3_hash.h -lcrypto -std=c99
