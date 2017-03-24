@@ -118,6 +118,7 @@ int sekv_set(int sockfd, char *key, int flags, int exptime, int bytes, char *val
 int sekv_get(int sockfd, char *key, int flags, int exptime, int bytes, char *value)
 {
     char buf[BUFSIZ], comm[BUFSIZ];
+    memset(buf,0,BUFSIZ); memset(comm,0,BUFSIZ);
     char *command="get ";
     strcpy(comm,command);
     unsigned char *p_enc, *p_mac;
@@ -158,6 +159,7 @@ int sekv_get(int sockfd, char *key, int flags, int exptime, int bytes, char *val
     
     int i,line,j;
     char ev[BUFSIZ];
+    memset(ev,0,BUFSIZ);
     char *p_dec,*p_dst;
     line=0;j=0;
     for(i=0;i<strlen(buf);i++){
@@ -294,16 +296,20 @@ int sekv_append(int sockfd, char *key, int flags, int exptime, int bytes, char *
 int main()
 {
    char *key="1234key";
-   char *value="hello world! My first runnable SeKV get set operations";
+   char *value="hello world!";
+   char *appv = "new!hahaha finally success!!!";
    int re=0;
    int sockfd;
    mcounter=0;
    assoc_init(16);
    sockfd = sekv_connect_server();
+   if(sockfd==1)
+     return -1;
    re = sekv_set(sockfd,key,0,0,strlen(value),value);
    re = sekv_get(sockfd,key,0,0,0,NULL);
-   re = sekv_set(sockfd,key,0,0,strlen(value),value);
+//   re = sekv_set(sockfd,key,0,0,strlen(value),value);
+//   re = sekv_get(sockfd,key,0,0,0,NULL);
+   re = sekv_append(sockfd,key,0,0,strlen(appv),appv);
    re = sekv_get(sockfd,key,0,0,0,NULL);
-   re = sekv_append(sockfd,key,0,0,10,"haha124abc");
-   re = sekv_append(sockfd,key,0,0,7,"haha124");  
+//   re = sekv_append(sockfd,key,0,0,7,"haha124");  
 } 
